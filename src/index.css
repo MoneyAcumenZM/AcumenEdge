@@ -1,0 +1,340 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 140 90% 3%;
+    --foreground: 200 20% 93%;
+
+    --card: 140 80% 5%;
+    --card-foreground: 200 20% 93%;
+
+    --popover: 140 80% 5%;
+    --popover-foreground: 200 20% 93%;
+
+    --primary: 33 95% 50%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 140 60% 7%;
+    --secondary-foreground: 200 18% 85%;
+
+    --muted: 140 50% 8%;
+    --muted-foreground: 150 18% 45%;
+
+    --accent: 145 63% 38%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 4 80% 50%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 145 63% 38%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 36 90% 52%;
+    --warning-foreground: 36 90% 52%;
+
+    --border: 140 40% 10%;
+    --input: 140 40% 10%;
+    --ring: 33 95% 50%;
+
+    --radius: 0.75rem;
+
+    --sidebar-background: 140 90% 3%;
+    --sidebar-foreground: 150 18% 45%;
+    --sidebar-primary: 33 95% 50%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 33 95% 50%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 140 40% 10%;
+    --sidebar-ring: 33 95% 50%;
+
+    /* Circle logo color palette */
+    --circle-lightest: 195 85% 78%;
+    --circle-light: 197 78% 65%;
+    --circle-mid: 200 72% 52%;
+    --circle-deep: 207 68% 42%;
+    --circle-darkest: 212 62% 34%;
+  }
+
+}
+
+@layer base {
+  * {
+    @apply border-border;
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  *::-webkit-scrollbar {
+    display: none;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-family: 'Inter', sans-serif;
+  }
+}
+
+@layer utilities {
+  .gradient-portfolio {
+    background: linear-gradient(135deg, hsl(140, 88%, 7%) 0%, hsl(135, 90%, 5%) 35%, hsl(150, 70%, 8%) 65%, hsl(145, 80%, 6%) 100%);
+    box-shadow: 0 8px 32px -8px rgba(2, 30, 5, 0.7), 0 2px 12px rgba(34, 197, 94, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.1), inset 0 -1px 0 rgba(0, 0, 0, 0.3);
+  }
+
+
+  .card-glow {
+    box-shadow: 0 0 20px 4px rgba(255, 149, 3, 0.1), 0 8px 32px -8px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  }
+
+  .text-success {
+    color: hsl(var(--success));
+  }
+
+  .text-destructive-val {
+    color: hsl(var(--destructive));
+  }
+
+  .text-warning {
+    color: hsl(var(--warning));
+  }
+
+  .bg-success-muted {
+    background: hsl(145, 63%, 38%, 0.12);
+  }
+
+  .bg-destructive-muted {
+    background: hsl(4, 80%, 50%, 0.12);
+  }
+
+  .bg-warning-muted {
+    background: hsl(36, 90%, 52%, 0.12);
+  }
+
+  .badge-success {
+    @apply bg-success-muted text-success px-3 py-1 rounded-full text-sm font-medium;
+  }
+
+  .badge-destructive {
+    @apply bg-destructive-muted text-destructive-val px-3 py-1 rounded-full text-sm font-medium;
+  }
+
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .hide-scrollbar {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .mobile-contain {
+    max-width: 100vw;
+    overflow-x: hidden;
+  }
+
+  /* ── Unified "white ring" surface language (matches home icon tiles) ── */
+  .ring-tile {
+    background: hsl(var(--background) / 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    border-radius: 1rem;
+  }
+
+  /* Liquid gloss popup surface — 85% transparent with white ring */
+  .liquid-gloss {
+    background:
+      linear-gradient(160deg, rgba(255, 255, 255, 0.10) 0%, rgba(255, 255, 255, 0.02) 38%, rgba(255, 255, 255, 0.06) 100%),
+      hsl(var(--background) / 0.15);
+    backdrop-filter: blur(28px) saturate(1.6);
+    -webkit-backdrop-filter: blur(28px) saturate(1.6);
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    border-radius: 1.5rem;
+    box-shadow:
+      0 24px 60px -12px rgba(0, 0, 0, 0.65),
+      inset 0 1px 0 rgba(255, 255, 255, 0.28),
+      inset 0 -1px 0 rgba(255, 255, 255, 0.06);
+  }
+
+
+  .ring-btn {
+    background: hsl(var(--background) / 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    color: #fff;
+    border-radius: 0.875rem;
+    transition: background-color 0.2s ease, border-color 0.2s ease;
+  }
+
+  .ring-btn:hover {
+    border-color: rgba(255, 255, 255, 0.22);
+  }
+
+  .ring-btn-active {
+    background: rgba(255, 255, 255, 0.10);
+    border-color: rgba(255, 255, 255, 0.38);
+    color: #fff;
+  }
+
+  .hairline-y > * + * {
+    border-top: 1px solid rgba(255, 255, 255, 0.07);
+  }
+
+  .hairline-top {
+    border-top: 1px solid rgba(255, 255, 255, 0.07);
+  }
+
+
+  @keyframes shimmer-slide {
+    0% { transform: rotate(-15deg) translateX(-100%); }
+    100% { transform: rotate(-15deg) translateX(200%); }
+  }
+
+  .group:hover .shimmer-streak {
+    animation: shimmer-slide 1.5s ease-in-out;
+  }
+
+  @keyframes shimmer-continuous {
+    0% { transform: rotate(-15deg) translateX(-150%); }
+    100% { transform: rotate(-15deg) translateX(250%); }
+  }
+
+  .shimmer-streak-continuous {
+    animation: shimmer-continuous 3s ease-in-out infinite;
+  }
+
+  /* Wallet card shimmer — market open (3s) */
+  @keyframes wallet-shimmer {
+    0% { transform: rotate(-15deg) translateX(-150%); }
+    100% { transform: rotate(-15deg) translateX(250%); }
+  }
+  .wallet-shimmer-streak {
+    animation: wallet-shimmer 3s ease-in-out infinite;
+  }
+  /* Wallet card shimmer — pre-market (slower 5s) */
+  .wallet-shimmer-streak-slow {
+    animation: wallet-shimmer 5s ease-in-out infinite;
+  }
+
+  @keyframes pattern-shimmer {
+    0%, 100% { opacity: 0.05; filter: grayscale(100%) brightness(2.5); }
+    50% { opacity: 0.12; filter: grayscale(60%) brightness(3) drop-shadow(0 0 4px rgba(255,149,3,0.3)); }
+  }
+
+  .pattern-icon-shimmer {
+    animation: pattern-shimmer 4s ease-in-out infinite;
+  }
+
+  @keyframes slide-up {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
+  }
+
+  @keyframes slide-down {
+    from { transform: translateY(0); }
+    to { transform: translateY(100%); }
+  }
+
+  .animate-slide-up {
+    animation: slide-up 0.35s cubic-bezier(0.32, 0.72, 0, 1);
+  }
+
+  /* ── macOS-style Dock ── */
+  .dock-bar {
+    background: hsl(var(--card) / 0.55);
+    backdrop-filter: blur(24px) saturate(1.8);
+    -webkit-backdrop-filter: blur(24px) saturate(1.8);
+    border: 1px solid hsl(var(--border) / 0.5);
+    box-shadow:
+      0 0 40px 8px hsl(var(--primary) / 0.08),
+      0 0 80px 16px hsl(var(--primary) / 0.04),
+      0 8px 32px -4px rgba(0, 0, 0, 0.5),
+      inset 0 1px 0 hsl(var(--foreground) / 0.06);
+  }
+
+  .dock-item {
+    cursor: pointer;
+    transition: transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  .dock-item:hover {
+    transform: translateY(-6px) scale(1.35);
+  }
+
+  .dock-item:hover + .dock-item,
+  .dock-item:has(+ .dock-item:hover) {
+    transform: translateY(-2px) scale(1.12);
+  }
+
+  .dock-icon-wrap {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 12px;
+    color: hsl(var(--muted-foreground));
+    background: transparent;
+    transition: all 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  .dock-item:hover .dock-icon-wrap {
+    background: hsl(var(--secondary));
+    color: hsl(var(--foreground));
+    box-shadow: 0 0 16px 2px hsl(var(--primary) / 0.2);
+  }
+
+  .dock-icon-active {
+    background: hsl(var(--primary) / 0.15) !important;
+    color: hsl(var(--primary)) !important;
+  }
+
+  .dock-icon-logout .dock-icon-wrap,
+  .dock-icon-logout {
+    color: hsl(var(--destructive));
+  }
+  .dock-item:hover .dock-icon-logout {
+    color: hsl(var(--destructive));
+  }
+
+  .dock-tooltip {
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%) scale(0.8);
+    background: hsl(var(--popover));
+    color: hsl(var(--popover-foreground));
+    font-size: 11px;
+    font-weight: 500;
+    padding: 4px 10px;
+    border-radius: 6px;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s, transform 0.15s;
+    border: 1px solid hsl(var(--border) / 0.5);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  }
+
+  .dock-item:hover .dock-tooltip {
+    opacity: 1;
+    transform: translateX(-50%) scale(1);
+  }
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-6px); }
+  40% { transform: translateX(6px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(4px); }
+}
+
+/* Native keyboard avoidance — expands padding when the keyboard is on-screen. */
+.keyboard-aware {
+  padding-bottom: env(keyboard-inset-height, 0px);
+  transition: padding 0.25s ease;
+}

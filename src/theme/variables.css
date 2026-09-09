@@ -1,0 +1,24 @@
+:root {
+  --ion-background-color: #0d1117;
+  --ion-background-color-rgb: 13,17,23;
+  --ion-text-color: #ffffff;
+  --ion-text-color-rgb: 255,255,255;
+  --ion-color-primary: #06b6d4;
+  --ion-color-primary-rgb: 6,182,212;
+  --ion-color-primary-contrast: #000000;
+  --ion-color-primary-shade: #0597af;
+  --ion-color-primary-tint: #1fbedd;
+  --ion-color-success: #22c55e;
+  --ion-color-danger: #ef4444;
+  --ion-card-background: #111827;
+  --ion-item-background: #111827;
+  --ion-toolbar-background: #0d1117;
+  --ion-toolbar-color: #ffffff;
+  --ion-tab-bar-background: #0d1117;
+  --ion-tab-bar-border-color: #1f2937;
+  --ion-tab-bar-color: #4b5563;
+  --ion-tab-bar-color-selected: #06b6d4;
+  --ion-border-color: #1f2937;
+  --ion-safe-area-top: env(safe-area-inset-top);
+  --ion-safe-area-bottom: env(safe-area-inset-bottom);
+}
