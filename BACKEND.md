@@ -59,11 +59,11 @@ The frontend calls these via `supabase.functions.invoke`. Until they exist the
 stub returns a clear "not available" error, so the UI degrades instead of
 crashing.
 
-- `submit-order` — validated order placement (atomic balance/holdings check).
-- `fix-bridge-webhook` — execution/fill ingestion, idempotent.
-- `dpo-callback` — payment gateway callback; the **authoritative** wallet credit.
-- `get-circle-accounts` — admin-only, verified JWT, PII stripped.
-- `seed-stock-prices` — historical price backfill for charts.
+- `submit-order`: validated order placement (atomic balance/holdings check).
+- `fix-bridge-webhook`: execution/fill ingestion, idempotent.
+- `dpo-callback`: payment gateway callback; the **authoritative** wallet credit.
+- `get-circle-accounts`: admin-only, verified JWT, PII stripped.
+- `seed-stock-prices`: historical price backfill for charts.
 
 Money must be handled in integer ngwee server-side (see the previous
 `_shared/money.ts` pattern), never floats.
@@ -76,7 +76,7 @@ no-ops, so callers use their fallbacks (`stocks.last_price`, empty order lists).
 
 To re-enable, restore the fetch implementations behind
 `VITE_API_BASE_URL` / `VITE_MIDDLEWARE_WS_URL` and keep the rule that the
-browser never calls LuSE directly — always proxy through server functions.
+browser never calls LuSE directly, always proxy through server functions.
 
 ## 5. Payments (Zynle Pay)
 
@@ -104,7 +104,7 @@ All requests use an 8s `AbortController` timeout.
 
 ## Where every screen gets its data (integration map)
 
-The frontend has exactly three seams. Implement these and the whole app goes live —
+The frontend has exactly three seams. Implement these and the whole app goes live,
 no component changes needed.
 
 | Seam | File | Env var |
@@ -130,9 +130,9 @@ in their header comments. Read those first.
 requests go out as `Authorization: Bearer <token>`.
 
 ### Feature flags for UI
-- `isBackendConfigured` (data client) — auth/tables available.
-- `isTradingApiConfigured` (middleware client) — orders/market data available.
-- `isPaymentsConfigured` (payments) — deposit/withdraw available.
+- `isBackendConfigured` (data client): auth/tables available.
+- `isTradingApiConfigured` (middleware client): orders/market data available.
+- `isPaymentsConfigured` (payments): deposit/withdraw available.
 
 ### Live updates
 `subscribeOrderUpdates(userId, cb)` and `subscribeOrderBookUpdates(symbol, cb)`
@@ -145,23 +145,23 @@ open one socket to `VITE_MIDDLEWARE_WS_URL`, send
 
 ## Frontend security posture
 
-Client-side checks are a UX layer only — the backend must re-validate everything.
+Client-side checks are a UX layer only. The backend must re-validate everything.
 
-- **Sanitisers** — `src/utils/sanitize.ts` (text, name, email, phone, amount,
+- **Sanitisers**: `src/utils/sanitize.ts` (text, name, email, phone, amount,
   search, account number, PIN) and `src/lib/sanitize.ts` (DOMPurify text, URL,
   filename, injection probe). Apply them in the input `onChange`, not just on
   submit, so bad characters never reach state.
-- **Schemas** — `src/utils/validation.ts` (login, signup, trade, deposit,
+- **Schemas**: `src/utils/validation.ts` (login, signup, trade, deposit,
   withdraw, profile) and `src/lib/schemas.ts` (signup steps, order, sign-in).
   Use `validate(schema, data)`; check `result.success === false` for errors.
-- **Applied at** — sign-in (schema + sanitised email, `maxLength` caps),
+- **Applied at**: sign-in (schema + sanitised email, `maxLength` caps),
   deposit (numeric-only amount, single decimal point, 12-char cap, phone
   formatter), withdrawal (numeric amount, sanitised bank name/branch,
   alphanumeric account number, sanitised mobile number), order ticket and
   sign-up (already schema-driven).
-- **No unsafe HTML** — no `dangerouslySetInnerHTML` with user content anywhere;
+- **No unsafe HTML**: no `dangerouslySetInnerHTML` with user content anywhere;
   any future rich text must go through DOMPurify first.
-- **Open-redirect guard** — the sign-in `next` parameter is only honoured when
+- **Open-redirect guard**: the sign-in `next` parameter is only honoured when
   it is a same-origin relative path.
 - **Headers** (`index.html`): `Content-Security-Policy` (`object-src 'none'`,
   `base-uri 'self'`, `form-action 'self'`, broad `connect-src` so any backend
