@@ -1,0 +1,551 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap')
+layer(base);
+
+@import 'tailwindcss';
+
+@plugin 'tailwindcss-animate';
+
+@custom-variant dark (&:is(.dark *));
+
+@utility container {
+  margin-inline: auto;
+  padding-inline: 2rem;
+  @media (width >= --theme(--breakpoint-sm)) {
+    max-width: none;
+  }
+  @media (width >= 1400px) {
+    max-width: 1400px;
+  }
+}
+
+@theme {
+  --font-sans: Inter, system-ui, sans-serif;
+
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+
+  --color-success: hsl(var(--success));
+  --color-success-foreground: hsl(var(--success-foreground));
+
+  --color-warning: hsl(var(--warning));
+  --color-warning-foreground: hsl(var(--warning-foreground));
+
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+
+  --color-sidebar: hsl(var(--sidebar-background));
+  --color-sidebar-foreground: hsl(var(--sidebar-foreground));
+  --color-sidebar-primary: hsl(var(--sidebar-primary));
+  --color-sidebar-primary-foreground: hsl(var(--sidebar-primary-foreground));
+  --color-sidebar-accent: hsl(var(--sidebar-accent));
+  --color-sidebar-accent-foreground: hsl(var(--sidebar-accent-foreground));
+  --color-sidebar-border: hsl(var(--sidebar-border));
+  --color-sidebar-ring: hsl(var(--sidebar-ring));
+
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+
+  --animate-accordion-down: accordion-down 0.2s ease-out;
+  --animate-accordion-up: accordion-up 0.2s ease-out;
+
+  @keyframes accordion-down {
+    from {
+      height: 0;
+  }
+    to {
+      height: var(--radix-accordion-content-height);
+  }
+  }
+  @keyframes accordion-up {
+    from {
+      height: var(--radix-accordion-content-height);
+  }
+    to {
+      height: 0;
+  }
+  }
+}
+
+/*
+  The default border color has changed to `currentcolor` in Tailwind CSS v4,
+  so we've added these compatibility styles to make sure everything still
+  looks the same as it did with Tailwind CSS v3.
+
+  If we ever want to remove these styles, we need to add an explicit border
+  color utility to any element that depends on these defaults.
+*/
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentcolor);
+  }
+
+  /* Tailwind 3 defaults that Tailwind 4 changed: placeholder text colour
+     (v4 uses the text colour at 50% opacity) and the pointer cursor on
+     buttons (v4 uses the default cursor). */
+  input::placeholder,
+  textarea::placeholder {
+    opacity: 1;
+    color: var(--color-gray-400);
+  }
+
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+}
+
+/*
+  App-specific classes. Kept as plain CSS in the utilities layer (not
+  @utility) so they come after Tailwind's own utilities and win ties, exactly
+  as they did under Tailwind 3 — e.g. `ring-btn` sets the button text colour
+  even when a `text-*` class is also present.
+*/
+@layer utilities {
+  .gradient-portfolio {
+    background: linear-gradient(135deg, hsl(140, 88%, 7%) 0%, hsl(135, 90%, 5%) 35%, hsl(150, 70%, 8%) 65%, hsl(145, 80%, 6%) 100%);
+    box-shadow: 0 8px 32px -8px rgba(2, 30, 5, 0.7), 0 2px 12px rgba(34, 197, 94, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.1), inset 0 -1px 0 rgba(0, 0, 0, 0.3);
+  }
+
+
+  .card-glow {
+    box-shadow: 0 0 20px 4px rgba(255, 149, 3, 0.1), 0 8px 32px -8px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  }
+
+  .text-success {
+    color: hsl(var(--success));
+  }
+
+  .text-destructive-val {
+    color: hsl(var(--destructive));
+  }
+
+  .text-warning {
+    color: hsl(var(--warning));
+  }
+
+  .bg-success-muted {
+    background: hsl(145, 63%, 38%, 0.12);
+  }
+
+  .bg-destructive-muted {
+    background: hsl(4, 80%, 50%, 0.12);
+  }
+
+  .bg-warning-muted {
+    background: hsl(36, 90%, 52%, 0.12);
+  }
+
+  .badge-success {
+    background: hsl(145, 63%, 38%, 0.12);
+    color: hsl(var(--success));
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    font-weight: 500;
+  }
+
+  .badge-destructive {
+    background: hsl(4, 80%, 50%, 0.12);
+    color: hsl(var(--destructive));
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    font-weight: 500;
+  }
+
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .hide-scrollbar {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .mobile-contain {
+    max-width: 100vw;
+    overflow-x: hidden;
+  }
+
+  /* ── Unified "white ring" surface language (matches home icon tiles) ── */
+  .ring-tile {
+    background: hsl(var(--background) / 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    border-radius: 1rem;
+  }
+
+  /* Liquid gloss popup surface — 85% transparent with white ring */
+  .liquid-gloss {
+    background:
+      linear-gradient(160deg, rgba(255, 255, 255, 0.10) 0%, rgba(255, 255, 255, 0.02) 38%, rgba(255, 255, 255, 0.06) 100%),
+      hsl(var(--background) / 0.15);
+    backdrop-filter: blur(28px) saturate(1.6);
+    -webkit-backdrop-filter: blur(28px) saturate(1.6);
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    border-radius: 1.5rem;
+    box-shadow:
+      0 24px 60px -12px rgba(0, 0, 0, 0.65),
+      inset 0 1px 0 rgba(255, 255, 255, 0.28),
+      inset 0 -1px 0 rgba(255, 255, 255, 0.06);
+  }
+
+
+  .ring-btn {
+    background: hsl(var(--background) / 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    color: #fff;
+    border-radius: 0.875rem;
+    transition: background-color 0.2s ease, border-color 0.2s ease;
+  }
+
+  .ring-btn:hover {
+    border-color: rgba(255, 255, 255, 0.22);
+  }
+
+  .ring-btn-active {
+    background: rgba(255, 255, 255, 0.10);
+    border-color: rgba(255, 255, 255, 0.38);
+    color: #fff;
+  }
+
+  .hairline-y > * + * {
+    border-top: 1px solid rgba(255, 255, 255, 0.07);
+  }
+
+  .hairline-top {
+    border-top: 1px solid rgba(255, 255, 255, 0.07);
+  }
+
+
+  @keyframes shimmer-slide {
+    0% { transform: rotate(-15deg) translateX(-100%); }
+    100% { transform: rotate(-15deg) translateX(200%); }
+  }
+
+  .group:hover .shimmer-streak {
+    animation: shimmer-slide 1.5s ease-in-out;
+  }
+
+  @keyframes shimmer-continuous {
+    0% { transform: rotate(-15deg) translateX(-150%); }
+    100% { transform: rotate(-15deg) translateX(250%); }
+  }
+
+  .shimmer-streak-continuous {
+    animation: shimmer-continuous 3s ease-in-out infinite;
+  }
+
+  /* Wallet card shimmer — market open (3s) */
+  @keyframes wallet-shimmer {
+    0% { transform: rotate(-15deg) translateX(-150%); }
+    100% { transform: rotate(-15deg) translateX(250%); }
+  }
+  .wallet-shimmer-streak {
+    animation: wallet-shimmer 3s ease-in-out infinite;
+  }
+  /* Wallet card shimmer — pre-market (slower 5s) */
+  .wallet-shimmer-streak-slow {
+    animation: wallet-shimmer 5s ease-in-out infinite;
+  }
+
+  @keyframes pattern-shimmer {
+    0%, 100% { opacity: 0.05; filter: grayscale(100%) brightness(2.5); }
+    50% { opacity: 0.12; filter: grayscale(60%) brightness(3) drop-shadow(0 0 4px rgba(255,149,3,0.3)); }
+  }
+
+  .pattern-icon-shimmer {
+    animation: pattern-shimmer 4s ease-in-out infinite;
+  }
+
+  @keyframes slide-up {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
+  }
+
+  @keyframes slide-down {
+    from { transform: translateY(0); }
+    to { transform: translateY(100%); }
+  }
+
+  .animate-slide-up {
+    animation: slide-up 0.35s cubic-bezier(0.32, 0.72, 0, 1);
+  }
+
+  /* ── macOS-style Dock ── */
+  .dock-bar {
+    background: hsl(var(--card) / 0.55);
+    backdrop-filter: blur(24px) saturate(1.8);
+    -webkit-backdrop-filter: blur(24px) saturate(1.8);
+    border: 1px solid hsl(var(--border) / 0.5);
+    box-shadow:
+      0 0 40px 8px hsl(var(--primary) / 0.08),
+      0 0 80px 16px hsl(var(--primary) / 0.04),
+      0 8px 32px -4px rgba(0, 0, 0, 0.5),
+      inset 0 1px 0 hsl(var(--foreground) / 0.06);
+  }
+
+  .dock-item {
+    cursor: pointer;
+    transition: transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  .dock-item:hover {
+    transform: translateY(-6px) scale(1.35);
+  }
+
+  .dock-item:hover + .dock-item,
+  .dock-item:has(+ .dock-item:hover) {
+    transform: translateY(-2px) scale(1.12);
+  }
+
+  .dock-icon-wrap {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 12px;
+    color: hsl(var(--muted-foreground));
+    background: transparent;
+    transition: all 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  .dock-item:hover .dock-icon-wrap {
+    background: hsl(var(--secondary));
+    color: hsl(var(--foreground));
+    box-shadow: 0 0 16px 2px hsl(var(--primary) / 0.2);
+  }
+
+  .dock-icon-active {
+    background: hsl(var(--primary) / 0.15) !important;
+    color: hsl(var(--primary)) !important;
+  }
+
+  .dock-icon-logout .dock-icon-wrap,
+  .dock-icon-logout {
+    color: hsl(var(--destructive));
+  }
+  .dock-item:hover .dock-icon-logout {
+    color: hsl(var(--destructive));
+  }
+
+  .dock-tooltip {
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%) scale(0.8);
+    background: hsl(var(--popover));
+    color: hsl(var(--popover-foreground));
+    font-size: 11px;
+    font-weight: 500;
+    padding: 4px 10px;
+    border-radius: 6px;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s, transform 0.15s;
+    border: 1px solid hsl(var(--border) / 0.5);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  }
+
+  .dock-item:hover .dock-tooltip {
+    opacity: 1;
+    transform: translateX(-50%) scale(1);
+  }
+}
+
+@layer base {
+  :root {
+    --background: 140 90% 3%;
+    --foreground: 200 20% 93%;
+
+    --card: 140 80% 5%;
+    --card-foreground: 200 20% 93%;
+
+    --popover: 140 80% 5%;
+    --popover-foreground: 200 20% 93%;
+
+    --primary: 33 95% 50%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 140 60% 7%;
+    --secondary-foreground: 200 18% 85%;
+
+    --muted: 140 50% 8%;
+    --muted-foreground: 150 18% 45%;
+
+    --accent: 145 63% 38%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 4 80% 50%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 145 63% 38%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 36 90% 52%;
+    --warning-foreground: 36 90% 52%;
+
+    --border: 140 40% 10%;
+    --input: 140 40% 10%;
+    --ring: 33 95% 50%;
+
+    --radius: 0.75rem;
+
+    --sidebar-background: 140 90% 3%;
+    --sidebar-foreground: 150 18% 45%;
+    --sidebar-primary: 33 95% 50%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 33 95% 50%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 140 40% 10%;
+    --sidebar-ring: 33 95% 50%;
+
+    /* Circle logo color palette */
+    --circle-lightest: 195 85% 78%;
+    --circle-light: 197 78% 65%;
+    --circle-mid: 200 72% 52%;
+    --circle-deep: 207 68% 42%;
+    --circle-darkest: 212 62% 34%;
+  }
+
+}
+
+@layer base {
+  * {
+    @apply border-border;
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  *::-webkit-scrollbar {
+    display: none;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-family: 'Inter', sans-serif;
+  }
+}
+
+@layer utilities {
+  @keyframes shimmer-slide {
+    0% { transform: rotate(-15deg) translateX(-100%); }
+    100% { transform: rotate(-15deg) translateX(200%); }
+  }
+
+  @keyframes shimmer-continuous {
+    0% { transform: rotate(-15deg) translateX(-150%); }
+    100% { transform: rotate(-15deg) translateX(250%); }
+  }
+  @keyframes wallet-shimmer {
+    0% { transform: rotate(-15deg) translateX(-150%); }
+    100% { transform: rotate(-15deg) translateX(250%); }
+  }
+
+  @keyframes pattern-shimmer {
+    0%, 100% { opacity: 0.05; filter: grayscale(100%) brightness(2.5); }
+    50% { opacity: 0.12; filter: grayscale(60%) brightness(3) drop-shadow(0 0 4px rgba(255,149,3,0.3)); }
+  }
+
+  @keyframes slide-up {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
+  }
+
+  @keyframes slide-down {
+    from { transform: translateY(0); }
+    to { transform: translateY(100%); }
+  }
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-6px); }
+  40% { transform: translateX(6px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(4px); }
+}
+
+/* Native keyboard avoidance — expands padding when the keyboard is on-screen. */
+.keyboard-aware {
+  padding-bottom: env(keyboard-inset-height, 0px);
+  transition: padding 0.25s ease;
+}
+
+/*
+  Tailwind 3 behaviour for space-x-* / space-y-*.
+
+  Tailwind 4 changed these utilities from "margin above every child after the
+  first visible one" to "margin below every child except the last". That moves
+  layouts wherever a container starts with a display:none child or a child
+  sets its own margin, so these rules restore the v3 behaviour for the sizes
+  this app uses. New code can use flex/grid + gap instead and ignore this.
+*/
+@layer utilities {
+  :where(.space-y-0 > *) { margin-block-end: 0; }
+  .space-y-0 > :not([hidden]) ~ :not([hidden]) { margin-top: calc(var(--spacing) * 0); margin-bottom: 0; }
+  :where(.space-y-0\.5 > *) { margin-block-end: 0; }
+  .space-y-0\.5 > :not([hidden]) ~ :not([hidden]) { margin-top: calc(var(--spacing) * 0.5); margin-bottom: 0; }
+  :where(.space-y-1 > *) { margin-block-end: 0; }
+  .space-y-1 > :not([hidden]) ~ :not([hidden]) { margin-top: calc(var(--spacing) * 1); margin-bottom: 0; }
+  :where(.space-y-1\.5 > *) { margin-block-end: 0; }
+  .space-y-1\.5 > :not([hidden]) ~ :not([hidden]) { margin-top: calc(var(--spacing) * 1.5); margin-bottom: 0; }
+  :where(.space-y-2 > *) { margin-block-end: 0; }
+  .space-y-2 > :not([hidden]) ~ :not([hidden]) { margin-top: calc(var(--spacing) * 2); margin-bottom: 0; }
+  :where(.space-y-2\.5 > *) { margin-block-end: 0; }
+  .space-y-2\.5 > :not([hidden]) ~ :not([hidden]) { margin-top: calc(var(--spacing) * 2.5); margin-bottom: 0; }
+  :where(.space-y-3 > *) { margin-block-end: 0; }
+  .space-y-3 > :not([hidden]) ~ :not([hidden]) { margin-top: calc(var(--spacing) * 3); margin-bottom: 0; }
+  :where(.space-y-4 > *) { margin-block-end: 0; }
+  .space-y-4 > :not([hidden]) ~ :not([hidden]) { margin-top: calc(var(--spacing) * 4); margin-bottom: 0; }
+  :where(.space-y-5 > *) { margin-block-end: 0; }
+  .space-y-5 > :not([hidden]) ~ :not([hidden]) { margin-top: calc(var(--spacing) * 5); margin-bottom: 0; }
+  :where(.space-y-6 > *) { margin-block-end: 0; }
+  .space-y-6 > :not([hidden]) ~ :not([hidden]) { margin-top: calc(var(--spacing) * 6); margin-bottom: 0; }
+  :where(.space-y-7 > *) { margin-block-end: 0; }
+  .space-y-7 > :not([hidden]) ~ :not([hidden]) { margin-top: calc(var(--spacing) * 7); margin-bottom: 0; }
+  :where(.space-y-8 > *) { margin-block-end: 0; }
+  .space-y-8 > :not([hidden]) ~ :not([hidden]) { margin-top: calc(var(--spacing) * 8); margin-bottom: 0; }
+  :where(.space-x-1 > *) { margin-inline-end: 0; }
+  .space-x-1 > :not([hidden]) ~ :not([hidden]) { margin-left: calc(var(--spacing) * 1); margin-right: 0; }
+  :where(.space-x-2 > *) { margin-inline-end: 0; }
+  .space-x-2 > :not([hidden]) ~ :not([hidden]) { margin-left: calc(var(--spacing) * 2); margin-right: 0; }
+  :where(.space-x-4 > *) { margin-inline-end: 0; }
+  .space-x-4 > :not([hidden]) ~ :not([hidden]) { margin-left: calc(var(--spacing) * 4); margin-right: 0; }
+  @media (width >= 40rem) {
+    :where(.sm\:space-y-0 > *) { margin-block-end: 0; }
+    .sm\:space-y-0 > :not([hidden]) ~ :not([hidden]) { margin-top: calc(var(--spacing) * 0); margin-bottom: 0; }
+    :where(.sm\:space-x-2 > *) { margin-inline-end: 0; }
+    .sm\:space-x-2 > :not([hidden]) ~ :not([hidden]) { margin-left: calc(var(--spacing) * 2); margin-right: 0; }
+    :where(.sm\:space-x-4 > *) { margin-inline-end: 0; }
+    .sm\:space-x-4 > :not([hidden]) ~ :not([hidden]) { margin-left: calc(var(--spacing) * 4); margin-right: 0; }
+  }
+}

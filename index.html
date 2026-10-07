@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AcumenEdge</title>
+    <meta name="description" content="AcumenEdge by Money Acumen: trading and investment on the Lusaka Securities Exchange">
+    <meta name="author" content="Money Acumen" />
+    <meta name="referrer" content="strict-origin-when-cross-origin">
+    <meta http-equiv="X-Content-Type-Options" content="nosniff">
+    <!-- Camera is used for KYC selfies; microphone and location are not used. -->
+    <meta http-equiv="Permissions-Policy" content="camera=(self), microphone=(), geolocation=(), payment=(self)">
+    <!-- Content Security Policy. Browsers apply the intersection of this and the
+         header policy in public/_headers, so keep the two in agreement. Scripts
+         load only from this app; connect-src allows any https/wss host (never unencrypted http/ws) because
+         the API and WebSocket hosts are set per deployment. public/_headers adds
+         frame-ancestors, HSTS and COOP/CORP, which a meta tag cannot set. -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src 'self' blob: https:; connect-src 'self' https: wss:; worker-src 'self' blob:; manifest-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'">
+
+    <link rel="manifest" href="/manifest.webmanifest">
+    <meta name="theme-color" content="#021e05">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="AcumenEdge">
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
+  </head>
+  <body>
+    <div id="root"></div>
+    <!-- No Median script tag: the Median wrapper injects its JavaScript bridge
+         (window.median) into the webview itself. -->
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
