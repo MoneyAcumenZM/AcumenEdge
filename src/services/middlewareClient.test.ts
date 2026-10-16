@@ -145,3 +145,50 @@ describe("order update subscription", () => {
     stop();
   });
 });
+
+
+describe("order, portfolio and history responses", () => {
+  const order = { clientId: "u1", symbol: "ZNCO", side: "buy" as const, quantity: 10, orderType: "limit" as const, price: 5 };
+
+  it.each([500, 502, 503])("surfaces a %i as an ApiError carrying the status, so callers keep the key", async (status) => {
+    const { middlewareClient, ApiError } = await load({ VITE_API_BASE_URL: "https://api.test" });
+    fetchMock.mockResolvedValue(jsonResponse(status, { error: "upstream" }));
+    const err = await middlewareClient.placeClientOrder(order, "k1").catch((e) => e);
+    expect(err).toBeInstanceOf(ApiError);
+    expect(err.status).toBe(status);
+  });
+
+  it("throws a ResponseShapeError, which keeps the key, when a 200 cannot be understood", async () => {
+    const { middlewareClient } = await load({ VITE_API_BASE_URL: "https://api.test" });
+    const { ResponseShapeError, errorLeavesOutcomeUnknown } = await import("@/lib/idempotency");
+    fetchMock.mockResolvedValue(new Response("Bad Gateway", { status: 200 }));
+    const err = await middlewareClient.placeClientOrder(order, "k1").catch((e) => e);
+    expect(err).toBeInstanceOf(ResponseShapeError);
+    expect(errorLeavesOutcomeUnknown(err)).toBe(true);
+  });
+
+  it("returns a well-formed order answer", async () => {
+    const { middlewareClient } = await load({ VITE_API_BASE_URL: "https://api.test" });
+    fetchMock.mockResolvedValue(jsonResponse(200, { status: "ok", clOrdId: "A1", orderStatus: "pending", fixSent: true }));
+    expect(await middlewareClient.placeClientOrder(order, "k1")).toMatchObject({ clOrdId: "A1", fixSent: true });
+  });
+
+  it("rejects a portfolio with an unreadable money field instead of valuing it at 0", async () => {
+    const { middlewareClient } = await load({ VITE_API_BASE_URL: "https://api.test" });
+    fetchMock.mockResolvedValue(jsonResponse(200, { positions: [{ symbol: "ZNCO", quantity: 10 }] }));
+    await expect(middlewareClient.getClientPortfolio("u1")).rejects.toThrow(/portfolio/);
+  });
+
+  it("rejects an open-orders list that is not a list", async () => {
+    const { middlewareClient } = await load({ VITE_API_BASE_URL: "https://api.test" });
+    fetchMock.mockResolvedValue(jsonResponse(200, { orders: "none" }));
+    await expect(middlewareClient.getClientOpenOrders("u1")).rejects.toThrow();
+  });
+
+  it("sends expiryDate with a GTD order", async () => {
+    const { middlewareClient } = await load({ VITE_API_BASE_URL: "https://api.test" });
+    fetchMock.mockResolvedValue(jsonResponse(200, { status: "ok", clOrdId: "A1", orderStatus: "pending" }));
+    await middlewareClient.placeClientOrder({ ...order, qualifier: "gtd", expiryDate: "2026-11-01" }, "k1");
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toMatchObject({ qualifier: "gtd", expiryDate: "2026-11-01" });
+  });
+});

@@ -61,11 +61,21 @@
  *   POST /api/orders/client          header: Idempotency-Key: <uuid>
  *        body PlaceOrderInput = { clientId, symbol, side: "buy" | "sell",
  *             quantity, orderType: "limit" | "market", price?,
- *             qualifier?: "day" | "gtd" | "fok" | "ioc" }
+ *             qualifier?: "day" | "gtd" | "fok" | "ioc",
+ *             expiryDate?: "YYYY-MM-DD" }
+ *          `expiryDate` is sent only when qualifier is "gtd" (and is then
+ *          required): the last day the order stays active, up to 14 days
+ *          ahead. The server must reject a gtd order without a valid one and
+ *          cancel the order when it passes.
  *        → { status: "ok", clOrdId, orderStatus: "pending" | "queued",
  *            fixSent: boolean, message? }
  *          The same Idempotency-Key must always return the same order: the
- *          app reuses the key when the user retries after a timeout.
+ *          app keeps the key and reuses it after a timeout, a dropped
+ *          connection or ANY 5xx (the order may have been committed before
+ *          the error was returned). It only discards the key after a 2xx or
+ *          a 4xx other than 408/409/425/429. A 2xx the app cannot parse is
+ *          treated like a timeout. A replayed key must return the original
+ *          result, never place a second order.
  *          403 { message } when the market is closed (shown verbatim).
  *   GET  /api/orders/client/:userId/open
  *        → { orders: [ { client_order_id, symbol, side, quantity, status } ] }
@@ -110,6 +120,16 @@
  *     quantity? } }. The server decides what a socket may receive from the
  *   ticket alone; the app never sends a user id.
  */
+
+import type { z } from 'zod';
+import {
+  ordersListSchema,
+  parseApi,
+  placeOrderResultSchema,
+  portfolioSchema,
+  tradeHistorySchema,
+  type Position,
+} from '@/lib/apiSchemas';
 
 export const BACKEND_NOT_CONFIGURED = 'BACKEND_NOT_CONFIGURED';
 export const REQUEST_TIMEOUT_MS = 8000;
@@ -226,6 +246,8 @@ export interface PlaceOrderInput {
   orderType: 'limit' | 'market';
   price?: number;
   qualifier?: 'day' | 'gtd' | 'fok' | 'ioc';
+  /** Last active day (YYYY-MM-DD). Sent for, and only for, gtd orders. */
+  expiryDate?: string;
 }
 
 export interface PlaceOrderResult {
@@ -239,12 +261,11 @@ export interface PlaceOrderResult {
 }
 
 export interface PortfolioResponse {
-  positions: ApiRecord[];
-  totalValue: number;
-  totalCost: number;
-  totalPnL: number;
-  totalPnLPct: number;
+  positions: Position[];
 }
+
+export type OpenOrdersResponse = z.output<typeof ordersListSchema>;
+export type TradeHistory = z.output<typeof tradeHistorySchema>;
 
 export interface CsdRegisterResult {
   status?: string | number;
@@ -284,23 +305,43 @@ export const middlewareClient = {
   // `idempotencyKey` is generated once per order intent by the caller and
   // reused for every retry of that same intent, so a timeout, double-tap or
   // lost response can never turn one order into two.
-  placeClientOrder: (o: PlaceOrderInput, idempotencyKey: string) =>
-    request<PlaceOrderResult>('/api/orders/client', {
-      method: 'POST',
-      body: o,
-      headers: { 'Idempotency-Key': idempotencyKey },
-    }),
-  getClientOpenOrders: (userId: string) =>
-    request<{ orders: ApiRecord[] }>(`/api/orders/client/${encodeURIComponent(userId)}/open`),
-  getClientHistory: (userId: string) =>
-    request<{ orders: ApiRecord[] }>(`/api/orders/client/${encodeURIComponent(userId)}/history`),
+  //
+  // The 2xx answer is validated: one that cannot be understood throws a
+  // ResponseShapeError, which callers treat as "outcome unknown" and so keep
+  // the key (the server did accept the request).
+  placeClientOrder: async (o: PlaceOrderInput, idempotencyKey: string): Promise<PlaceOrderResult> =>
+    parseApi(
+      placeOrderResultSchema,
+      await request<unknown>('/api/orders/client', {
+        method: 'POST',
+        body: o,
+        headers: { 'Idempotency-Key': idempotencyKey },
+      }),
+      'order',
+    ),
+  getClientOpenOrders: async (userId: string): Promise<OpenOrdersResponse> =>
+    parseApi(
+      ordersListSchema,
+      await request<unknown>(`/api/orders/client/${encodeURIComponent(userId)}/open`),
+      'open orders',
+    ),
+  getClientHistory: async (userId: string): Promise<TradeHistory> =>
+    parseApi(
+      tradeHistorySchema,
+      await request<unknown>(`/api/orders/client/${encodeURIComponent(userId)}/history`),
+      'trade history',
+    ),
   cancelClientOrder: (clOrdId: string, userId: string) =>
     request<ApiRecord>(`/api/orders/${encodeURIComponent(clOrdId)}/cancel`, {
       method: 'POST',
       body: { userId },
     }),
-  getClientPortfolio: (userId: string) =>
-    request<PortfolioResponse>(`/api/orders/client/${encodeURIComponent(userId)}/portfolio`),
+  getClientPortfolio: async (userId: string): Promise<PortfolioResponse> =>
+    parseApi(
+      portfolioSchema,
+      await request<unknown>(`/api/orders/client/${encodeURIComponent(userId)}/portfolio`),
+      'portfolio',
+    ),
 
   // CSD
   csdRegister: () => request<CsdRegisterResult>('/api/csd/register', { method: 'POST' }),

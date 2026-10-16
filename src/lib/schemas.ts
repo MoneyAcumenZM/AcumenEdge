@@ -17,7 +17,7 @@ export const orderSchema = z.object({
 }).refine(d => d.order_type === 'market' || (d.limit_price !== null && d.limit_price !== undefined), {
   message: 'Limit price is required for limit orders',
   path: ['limit_price'],
-}).refine(d => d.qualifier !== 'gtd' || (d.expiry_date !== null && d.expiry_date !== undefined), {
+}).refine(d => d.qualifier !== 'gtd' || /^\d{4}-\d{2}-\d{2}$/.test(d.expiry_date ?? ''), {
   message: 'Expiry date is required for GTD orders',
   path: ['expiry_date'],
 });

@@ -6,7 +6,7 @@ import { useIdempotencyKey } from '@/hooks/useIdempotencyKey';
 import { logAudit } from '@/lib/audit';
 import { sanitizeText, sanitizePhone, sanitizeAccountNumber } from '@/lib/formSanitizers';
 import { useQueryClient } from '@tanstack/react-query';
-import { requestWithdrawal, type MobileNetwork } from '@/services/dpoService';
+import { normalisePhone, requestStepUp, requestWithdrawal, type MobileNetwork, type WithdrawResult } from '@/services/dpoService';
 import { useWallet } from '@/hooks/useDataQuery';
 import { formatZMW } from '@/lib/tradingUtils';
 import { isPINEnabled, verifyPIN, isPINLocked } from '@/features/auth/services/pinService';
@@ -35,10 +35,11 @@ const WithdrawScreen = ({ onClose }: WithdrawScreenProps) => {
   const [error, setError] = useState('');
   const isSubmitting = useRef(false);
   // One key per withdrawal intent (amount + destination). It survives a
-  // timeout or network failure — when nobody knows whether the server acted —
-  // so trying again can't create a second withdrawal. It is only replaced
-  // once the server has given a definite answer, or the details change.
-  const { keyFor, settle } = useIdempotencyKey();
+  // timeout, network failure or 5xx — whenever nobody knows whether the
+  // server acted — so trying again can't create a second withdrawal. It is
+  // only replaced once the server has given a definite answer, or the
+  // details change.
+  const { keyFor, settle } = useIdempotencyKey(user ? `withdraw:${user.id}` : undefined);
 
   // Mobile money
   const [amount, setAmount] = useState('');
@@ -52,9 +53,10 @@ const WithdrawScreen = ({ onClose }: WithdrawScreenProps) => {
   const [bankBranch, setBankBranch] = useState('');
 
   // Step-up PIN re-entry, required before any withdrawal is submitted; a
-  // client without a PIN is sent to set one first. pinService's PIN is checked
-  // on the device, not by a server, so this is defence in depth rather than
-  // server-verified step-up authentication.
+  // client without a PIN is sent to set one first. The PIN is checked on the
+  // device first (fast feedback and a local lockout) and then by the server,
+  // which issues a single-use token for this exact withdrawal. The server,
+  // not the device, is what releases the money.
   const [pinInput, setPinInput] = useState('');
   const [pinError, setPinError] = useState('');
   const hasPin = user ? isPINEnabled(user.id) : false;
@@ -88,25 +90,31 @@ const WithdrawScreen = ({ onClose }: WithdrawScreenProps) => {
     setStep('confirm');
   };
 
-  const submitMobile = async () => {
-    if (isSubmitting.current || !isAmountValid || !isPhoneValid || exceedsBalance) return;
-    isSubmitting.current = true;
-    setLoading(true);
-    setError('');
-    const result = await requestWithdrawal({
-      amount: amountNum,
-      method: 'mobile_money',
-      mobileNumber,
-      mobileProvider,
-      idempotencyKey: keyFor(JSON.stringify({ method: 'mobile_money', amount: amountNum, mobileNumber, mobileProvider })),
-    });
-    setLoading(false);
-    isSubmitting.current = false;
-    if (!result.networkError) settle();
+  /** Common tail of a withdrawal attempt, whichever method it used. */
+  const finish = (result: WithdrawResult, backTo: Step) => {
+    // The key is released only on a definite answer. A timeout, a dropped
+    // connection, a 5xx or an unreadable 2xx leaves it in place, so pressing
+    // the button again replays the same withdrawal.
+    if (!result.outcomeUnknown) settle();
     if (handleAuthError(result)) return;
+    if (result.outcomeUnknown) {
+      setError(
+        "We couldn't confirm whether your withdrawal went through. Check your wallet history before trying again. If you do try again it is safe: it will not send the money twice.",
+      );
+      queryClient.invalidateQueries({ queryKey: ['wallet'] });
+      setStep('confirm');
+      return;
+    }
+    if (result.code?.startsWith('step_up_')) {
+      // The server did not accept the PIN check: ask for the PIN again.
+      setPinInput('');
+      setPinError(result.code === 'step_up_expired' ? 'That took too long. Enter your PIN again.' : 'Enter your PIN again to authorize this withdrawal.');
+      setStep('confirm');
+      return;
+    }
     if (!result.success) {
       setError(result.error || 'Withdrawal failed.');
-      setStep('mobile');
+      setStep(backTo);
       return;
     }
     setSuccessMessage(result.message || 'Your withdrawal is being processed within 1–2 business days.');
@@ -116,11 +124,19 @@ const WithdrawScreen = ({ onClose }: WithdrawScreenProps) => {
     setStep('success');
   };
 
-  const submitBank = async () => {
-    if (isSubmitting.current || !isAmountValid || !bankName || !bankAccount || exceedsBalance) return;
-    isSubmitting.current = true;
-    setLoading(true);
-    setError('');
+  const submitMobile = async (stepUpToken: string) => {
+    const result = await requestWithdrawal({
+      amount: amountNum,
+      method: 'mobile_money',
+      mobileNumber,
+      mobileProvider,
+      idempotencyKey: keyFor(JSON.stringify({ method: 'mobile_money', amount: amountNum, mobileNumber, mobileProvider })),
+      stepUpToken,
+    });
+    finish(result, 'mobile');
+  };
+
+  const submitBank = async (stepUpToken: string) => {
     const result = await requestWithdrawal({
       amount: amountNum,
       method: 'bank',
@@ -128,21 +144,9 @@ const WithdrawScreen = ({ onClose }: WithdrawScreenProps) => {
       bankAccount,
       bankBranch: bankBranch || undefined,
       idempotencyKey: keyFor(JSON.stringify({ method: 'bank', amount: amountNum, bankName, bankAccount, bankBranch })),
+      stepUpToken,
     });
-    setLoading(false);
-    isSubmitting.current = false;
-    if (!result.networkError) settle();
-    if (handleAuthError(result)) return;
-    if (!result.success) {
-      setError(result.error || 'Withdrawal failed.');
-      setStep('bank');
-      return;
-    }
-    setSuccessMessage(result.message || 'Your withdrawal is being processed within 1–2 business days.');
-    setNewBalance(typeof result.newBalance === 'number' ? result.newBalance : null);
-    queryClient.invalidateQueries({ queryKey: ['wallet'] });
-    queryClient.refetchQueries({ queryKey: ['wallet'] });
-    setStep('success');
+    finish(result, 'bank');
   };
 
   const handleConfirm = async () => {
@@ -152,20 +156,53 @@ const WithdrawScreen = ({ onClose }: WithdrawScreenProps) => {
       return;
     }
     if (!hasPin) return;
+    const method = pendingMethod;
+    const valid = method === 'mobile_money'
+      ? isAmountValid && isPhoneValid
+      : isAmountValid && !!bankName && !!bankAccount;
+    if (!valid || exceedsBalance) return;
     const lock = isPINLocked(user.id);
     if (lock.locked) {
       setPinError(`Too many attempts. Try again in ${Math.ceil(lock.secondsRemaining / 60)} min.`);
       return;
     }
-    const ok = await verifyPIN(user.id, pinInput);
-    if (!ok) {
-      setPinError('Incorrect PIN.');
-      return;
+
+    isSubmitting.current = true;
+    setLoading(true);
+    setError('');
+    try {
+      const ok = await verifyPIN(user.id, pinInput);
+      if (!ok) {
+        setPinError('Incorrect PIN.');
+        return;
+      }
+      setPinError('');
+
+      // Server-side step-up: the server checks the PIN itself and ties the
+      // token it returns to this amount and destination. Nothing is
+      // withdrawn without it.
+      const stepUp = await requestStepUp({
+        pin: pinInput,
+        amount: amountNum,
+        method,
+        destination: method === 'mobile_money' ? normalisePhone(mobileNumber) : bankAccount,
+      });
+      if (!stepUp.success || !stepUp.token) {
+        if (handleAuthError(stepUp)) return;
+        if (stepUp.code === 'step_up_invalid') setPinError('Incorrect PIN.');
+        else if (stepUp.code === 'step_up_locked') setPinError('Too many attempts. Try again later.');
+        else if (stepUp.code === 'pin_not_enrolled') setError('Your PIN needs to be set up again before you can withdraw. Remove it in Profile and create it again.');
+        else setError(stepUp.error || 'We could not verify your PIN. Please try again.');
+        return;
+      }
+
+      logAudit('WITHDRAWAL_REQUESTED', 'withdrawals', undefined, { method, amount: amountNum });
+      if (method === 'mobile_money') await submitMobile(stepUp.token);
+      else await submitBank(stepUp.token);
+    } finally {
+      setLoading(false);
+      isSubmitting.current = false;
     }
-    setPinError('');
-    logAudit('WITHDRAWAL_REQUESTED', 'withdrawals', undefined, { method: pendingMethod, amount: amountNum });
-    if (pendingMethod === 'mobile_money') await submitMobile();
-    else await submitBank();
   };
 
   const BalanceHeader = (

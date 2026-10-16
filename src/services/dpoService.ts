@@ -10,8 +10,9 @@
  * ── General rules ──────────────────────────────────────────────────────────
  *  - JSON in and out, `Authorization: Bearer <access token>` on every call,
  *    8 s timeout. Errors: non-2xx with `{ "error": "message" }`.
- *  - 401 or 403 means the session has expired: the app sends the user to
- *    sign in again.
+ *  - 401 means the session has expired: the app sends the user to sign in
+ *    again. So does a 403 without a step-up `code` (see POST
+ *    /api/auth/step-up below).
  *  - Money is a decimal number in ZMW. Phone numbers are sent in the
  *    12-digit 260 format (e.g. 260971234567).
  *
@@ -23,15 +24,41 @@
  *          `balance` is the amount available to spend; buys are checked
  *          against it. Polled every 30 s.
  *
+ *   POST /api/auth/step-up
+ *        body { purpose: "withdrawal", pin, amount, method, destination }
+ *          `destination` is the mobile number (260 format) or the bank
+ *          account number the money is going to.
+ *        → { token, expiresIn? }   a single-use token, valid for about 2
+ *          minutes, bound by the server to this user, this purpose, this
+ *          amount and this destination. The server checks the PIN against
+ *          its own record and enforces its own attempt limit:
+ *          401 { code: "step_up_invalid" } wrong PIN
+ *          429 { code: "step_up_locked" }  too many attempts
+ *          409 { code: "pin_not_enrolled" } no PIN on the server yet
+ *   PUT  /api/auth/pin
+ *        body { pin }  → 204. Enrols (or replaces) the server's copy of the
+ *          PIN when the user sets one in the app. The server decides what
+ *          to require for this (e.g. a recent password sign-in); it must
+ *          store only a salted slow hash of the PIN.
+ *
  *   POST /api/wallet/withdraw        header: Idempotency-Key: <uuid>
+ *                                    header: X-Step-Up-Token: <token>
  *        body { amount, method: "mobile_money" | "bank",
  *               mobileNumber?, mobileProvider?: "Airtel" | "MTN" | "Zamtel",
  *               bankName?, bankAccount?, bankBranch? }
  *        → { transactionId, status: "pending", newBalance?, message? }
- *          The same Idempotency-Key must always return the same withdrawal:
- *          the app reuses it when the user retries after a timeout. The PIN
- *          the user enters is checked on the phone only; any server-side
- *          step-up check is the server's to add.
+ *          The server MUST NOT release money without a valid step-up token
+ *          for exactly this amount and destination, and consumes the token.
+ *          403 { code: "step_up_required" | "step_up_invalid" |
+ *                      "step_up_expired" } sends the user back to enter the
+ *          PIN again.
+ *          The same Idempotency-Key must always return the same withdrawal
+ *          (and must be answered from the stored result before the token is
+ *          checked, because the token of the first attempt is already spent):
+ *          the app keeps the key and reuses it after a timeout, a dropped
+ *          connection or ANY 5xx, since the withdrawal may have been
+ *          committed before the error was returned. It only discards the key
+ *          after a 2xx or a 4xx other than 408/409/425/429.
  *
  * Deposits (switched off in the app for now — DEPOSITS_ENABLED in
  * DepositScreen.tsx — but wired to these endpoints):
@@ -51,6 +78,16 @@
  */
 
 
+import {
+  parseWalletTransactions,
+  depositVerifySchema,
+  parseApi,
+  stepUpSchema,
+  walletSchema,
+  withdrawResultSchema,
+} from '@/lib/apiSchemas';
+import { isOutcomeUnknown, ResponseShapeError } from '@/lib/idempotency';
+
 const BASE = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') || '';
 const TIMEOUT_MS = 8000;
 
@@ -68,7 +105,21 @@ export function setPaymentsAccessToken(token: string | null) {
   accessToken = token;
 }
 
-type Result = { success: boolean; error?: string; sessionExpired?: boolean; networkError?: boolean };
+type Result = {
+  success: boolean;
+  error?: string;
+  sessionExpired?: boolean;
+  networkError?: boolean;
+  /** HTTP status of a non-2xx answer. */
+  httpStatus?: number;
+  /** The server's machine-readable reason, when it gave one. */
+  code?: string;
+  /**
+   * True when nobody can tell whether the server acted (timeout, dropped
+   * connection, 5xx, an unreadable 2xx). The idempotency key must be kept.
+   */
+  outcomeUnknown?: boolean;
+};
 
 type Call<T> = { ok: true; data: T } | { ok: false; result: Result };
 
@@ -92,16 +143,20 @@ async function call<T>(
       signal: controller.signal,
     });
 
-    if (res.status === 401 || res.status === 403) {
-      return { ok: false, result: { success: false, error: SESSION_EXPIRED, sessionExpired: true } };
-    }
-
-    const text = await res.text();
-    let data: { error?: string; message?: string } | null = null;
+    const text = await res.text().catch(() => '');
+    let data: { error?: string; message?: string; code?: string } | null = null;
     try {
       data = text ? JSON.parse(text) : null;
     } catch {
       data = null;
+    }
+
+    const code = typeof data?.code === 'string' ? data.code : undefined;
+    const isStepUp = code !== undefined && code.startsWith('step_up_');
+    // A wrong step-up PIN is a 401 and a missing token a 403, but both carry
+    // a step_up_* code and are not a lapsed session.
+    if ((res.status === 401 || res.status === 403) && !isStepUp) {
+      return { ok: false, result: { success: false, error: SESSION_EXPIRED, sessionExpired: true, httpStatus: res.status } };
     }
 
     if (!res.ok) {
@@ -110,6 +165,9 @@ async function call<T>(
         result: {
           success: false,
           error: data?.error || data?.message || `Request failed (${res.status})`,
+          httpStatus: res.status,
+          code,
+          outcomeUnknown: isOutcomeUnknown(res.status),
         },
       };
     }
@@ -122,6 +180,7 @@ async function call<T>(
         success: false,
         error: aborted ? NETWORK_ERROR : (err instanceof Error && err.message) || NETWORK_ERROR,
         networkError: true,
+        outcomeUnknown: true,
       },
     };
   } finally {
@@ -180,6 +239,8 @@ export interface WithdrawParams {
   /** Generated once per withdrawal attempt and reused across retries so a
    * network retry or double-submit can't create two withdrawal requests. */
   idempotencyKey?: string;
+  /** Single-use token from requestStepUp(), bound to this withdrawal. */
+  stepUpToken?: string;
 }
 
 export interface WithdrawResult extends Result {
@@ -205,11 +266,11 @@ export async function getWallet(): Promise<WalletResponse> {
     // nobody actually confirmed.
     throw new Error(r.result.error || NETWORK_ERROR);
   }
-  return {
-    balance: Number(r.data?.balance ?? 0),
-    currency: r.data?.currency || 'ZMW',
-    transactions: Array.isArray(r.data?.transactions) ? r.data.transactions : [],
-  };
+  // A response without a usable balance is an error, not a K0.00 wallet.
+  const wallet = parseApi(walletSchema, r.data, 'wallet');
+  const { transactions, rejected } = parseWalletTransactions(wallet.transactions);
+  if (rejected > 0) console.warn(`[wallet] ${rejected} transaction row(s) were malformed and left out.`);
+  return { balance: wallet.balance, currency: wallet.currency, transactions };
 }
 
 export async function initiateDeposit(
@@ -241,7 +302,13 @@ export async function verifyDeposit(transToken: string): Promise<VerifyDepositRe
     `/api/wallet/deposit/${encodeURIComponent(transToken)}/verify`,
   );
   if (r.ok === false) return r.result;
-  return { ...r.data, success: r.data?.success ?? true };
+  try {
+    const parsed = parseApi(depositVerifySchema, r.data, 'deposit');
+    return { ...parsed, success: parsed.success ?? true };
+  } catch (e) {
+    // Never report a deposit as complete on an answer that can't be read.
+    return { success: false, error: e instanceof Error ? e.message : 'Could not verify the deposit.' };
+  }
 }
 
 export async function cancelDeposit(
@@ -255,9 +322,46 @@ export async function cancelDeposit(
   return { success: true };
 }
 
+export interface StepUpParams {
+  pin: string;
+  amount: number;
+  method: 'mobile_money' | 'bank';
+  /** Normalised mobile number, or the bank account number. */
+  destination: string;
+}
+
+export interface StepUpResult extends Result {
+  token?: string;
+}
+
+/**
+ * Asks the server to check the user's PIN and issue a single-use token for
+ * one specific withdrawal. The PIN is only ever sent over this request.
+ */
+export async function requestStepUp(params: StepUpParams): Promise<StepUpResult> {
+  const r = await call<unknown>('/api/auth/step-up', {
+    method: 'POST',
+    body: { purpose: 'withdrawal', ...params },
+  });
+  if (r.ok === false) return r.result;
+  try {
+    const { token } = parseApi(stepUpSchema, r.data, 'step-up');
+    return { success: true, token };
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : 'Step-up failed.' };
+  }
+}
+
+/** Gives the server its own copy of the PIN so it can verify step-up itself. */
+export async function enrolServerPin(pin: string): Promise<Result> {
+  const r = await call<unknown>('/api/auth/pin', { method: 'PUT', body: { pin } });
+  if (r.ok === false) return r.result;
+  return { success: true };
+}
+
 export async function requestWithdrawal(params: WithdrawParams): Promise<WithdrawResult> {
-  // The idempotency key travels as a header, not in the body.
-  const { idempotencyKey, ...details } = params;
+  // The idempotency key and step-up token travel as headers, not in the body.
+  const { idempotencyKey, stepUpToken, ...details } = params;
   const body =
     details.method === 'mobile_money' && details.mobileNumber
       ? { ...details, mobileNumber: normalisePhone(details.mobileNumber) }
@@ -265,8 +369,25 @@ export async function requestWithdrawal(params: WithdrawParams): Promise<Withdra
   const r = await call<WithdrawResult>('/api/wallet/withdraw', {
     method: 'POST',
     body,
-    headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined,
+    headers: {
+      ...(idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {}),
+      ...(stepUpToken ? { 'X-Step-Up-Token': stepUpToken } : {}),
+    },
   });
   if (r.ok === false) return r.result;
-  return { status: 'pending', ...r.data, success: r.data?.success ?? true };
+  try {
+    const parsed = parseApi(withdrawResultSchema, r.data, 'withdrawal');
+    return { ...parsed, status: parsed.status ?? 'pending', success: parsed.success ?? true };
+  } catch (e) {
+    // The server accepted the request but the answer is unreadable: the
+    // withdrawal may exist, so this must not look like a clean failure.
+    if (e instanceof ResponseShapeError) {
+      return {
+        success: false,
+        outcomeUnknown: true,
+        error: 'We could not confirm your withdrawal. Check your transactions before trying again.',
+      };
+    }
+    throw e;
+  }
 }

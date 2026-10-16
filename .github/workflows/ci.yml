@@ -5,6 +5,9 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -17,6 +20,12 @@ jobs:
           cache: npm
 
       - run: npm ci
+
+      # Known vulnerabilities in dependencies, dev tooling included (the dev
+      # server and bundler have had their own advisories). Fails the build
+      # at high severity or above.
+      - name: Dependency audit
+        run: npm audit --audit-level=high
 
       # Lint is at zero errors and zero warnings and is kept there: any new
       # problem, warnings included, fails the build.

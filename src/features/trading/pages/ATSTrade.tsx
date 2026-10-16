@@ -8,6 +8,8 @@ import { orderSchema } from "@/lib/schemas";
 import { sanitizeError } from "@/lib/errors";
 import { logAudit } from "@/lib/audit";
 import { useIdempotencyKey } from "@/hooks/useIdempotencyKey";
+import { checkHalt } from "@/lib/halts";
+import { errorLeavesOutcomeUnknown } from "@/lib/idempotency";
 import { checkOrderLimits, settledQuantity } from "@/features/trading/lib/orderLimits";
 import { middlewareClient, ApiError, type PlaceOrderInput } from "@/services/middlewareClient";
 import { PAPER_TRADING_MODE } from "@/lib/config";
@@ -29,7 +31,7 @@ const ATSTrade = () => {
   const navigate = useNavigate();
   const { user, profile } = useAuth();
   const { canTrade, csdPending } = useAccountRestrictions();
-  const { keyFor, settle } = useIdempotencyKey();
+  const { keyFor, settle } = useIdempotencyKey(user ? `order:${user.id}` : undefined);
   const [searchParams] = useSearchParams();
   const isSubmitting = useRef(false);
   const queryClient = useQueryClient();
@@ -98,6 +100,8 @@ const ATSTrade = () => {
   // If the phase is unknown (middleware unreachable), leave the button enabled
   // and let the server respond with 403 (handled below).
   const isMarketClosedKnown = marketStatus != null && marketStatus.trading_allowed === false;
+  // A halted stock (or a halts feed that can't be read) can't be ordered.
+  const halt = useMemo(() => checkHalt(marketStatus, selectedStock?.symbol), [marketStatus, selectedStock?.symbol]);
 
   const boardSplit = useMemo(() => {
     if (!volume || Number(volume) <= 0 || !selectedStock) return null;
@@ -135,6 +139,10 @@ const ATSTrade = () => {
     }
     if (isMarketClosedKnown) {
       setErrors(['The market is currently closed. Orders are accepted 09:00–14:00 CAT.']);
+      return;
+    }
+    if (halt.blocked) {
+      setErrors([halt.message]);
       return;
     }
 
@@ -178,10 +186,16 @@ const ATSTrade = () => {
 
     setErrors([]);
     setConfirmOpen(true);
-  }, [stockId, volume, price, orderType, qualifier, expiryDate, side, consideration, selectedStock, profile, canTrade, csdGated, isMarketClosedKnown, walletBalance, fees, holdings]);
+  }, [stockId, volume, price, orderType, qualifier, expiryDate, side, consideration, selectedStock, profile, canTrade, csdGated, isMarketClosedKnown, halt, walletBalance, fees, holdings]);
 
   const confirmOrder = useCallback(async () => {
     if (!user || isSubmitting.current) return;
+    // The halt may have started while the confirmation was on screen.
+    if (halt.blocked) {
+      setErrors([halt.message]);
+      setConfirmOpen(false);
+      return;
+    }
     isSubmitting.current = true;
     setLoading(true);
 
@@ -220,6 +234,7 @@ const ATSTrade = () => {
         orderType,
         ...(orderType === 'limit' ? { price: Number(price) } : {}),
         qualifier,
+        ...(qualifier === 'gtd' ? { expiryDate } : {}),
       };
       // The key stays the same for as long as the order's parameters do, so
       // confirming again after a timeout replays this order rather than
@@ -276,13 +291,20 @@ const ATSTrade = () => {
       navigate('/my-orders');
     } catch (error) {
       queryClient.invalidateQueries({ queryKey: queryKeys.orders(user.id) });
-      // Any response from the server is a definitive answer. Only a timeout
-      // or network failure leaves the outcome unknown, and then the key is
-      // kept so that trying again can't duplicate the order.
-      if (error instanceof ApiError) settle();
+      // Only a refusal releases the key. A timeout, a dropped connection, any
+      // 5xx or an unreadable 2xx leaves the outcome unknown: the order may
+      // already exist, so the key is kept and trying again replays it
+      // instead of creating a second order.
+      const unknown = errorLeavesOutcomeUnknown(error);
+      if (!unknown) settle();
+      if (unknown) queryClient.invalidateQueries({ queryKey: ['client-open-orders', user.id] });
       // FIX I: surface middleware 403 (market closed) message verbatim.
       const closedMessage = error instanceof ApiError && error.status === 403 ? error.body?.message : undefined;
-      if (typeof closedMessage === 'string' && closedMessage) {
+      if (unknown) {
+        const message = "We couldn't confirm whether your order was placed. Check My Orders before trying again; retrying is safe and will not create a second order.";
+        setErrors([message]);
+        toast.error(message);
+      } else if (typeof closedMessage === 'string' && closedMessage) {
         setErrors([closedMessage]);
         toast.error(closedMessage);
       } else {
@@ -293,7 +315,7 @@ const ATSTrade = () => {
       setLoading(false);
       isSubmitting.current = false;
     }
-  }, [user, stockId, side, orderType, qualifier, volume, price, expiryDate, navigate, selectedStock, queryClient, keyFor, settle]);
+  }, [user, stockId, side, orderType, qualifier, volume, price, expiryDate, navigate, selectedStock, queryClient, keyFor, settle, halt]);
 
   const minExpiry = new Date(Date.now() + 86400000).toISOString().split('T')[0];
   const maxExpiry = new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0];
@@ -546,7 +568,7 @@ const ATSTrade = () => {
           </div>
         )}
 
-        <button onClick={handleSubmit} disabled={loading}
+        <button onClick={handleSubmit} disabled={loading || halt.blocked}
           className={`w-full py-3.5 rounded-xl text-sm font-bold transition-all ${side === 'buy' ? 'bg-success text-white' : 'bg-destructive text-white'} disabled:opacity-50`}>
           {loading ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : 'Post Order'}
         </button>
@@ -555,6 +577,9 @@ const ATSTrade = () => {
           <p className="text-[11px] text-muted-foreground text-center mt-2">
             Market closed — orders accepted 09:00–14:00 CAT
           </p>
+        )}
+        {selectedStock && halt.blocked && (
+          <p role="alert" className="text-[11px] text-destructive text-center mt-2">{halt.message}</p>
         )}
       </div>
 

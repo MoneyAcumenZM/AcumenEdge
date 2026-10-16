@@ -259,7 +259,7 @@ needed, `services/` or `lib/`. Tests sit next to the file they test
 - **Trading:** a trade page and a quick order ticket (from Market and
   Watchlist), both with a confirmation step, plus open orders, cancelling and
   trade history.
-- **Wallet:** balance, withdrawals (PIN required), and deposit screens.
+- **Wallet:** balance, withdrawals (PIN required, verified by the server), and deposit screens.
   Deposits are switched off for now.
 - **Admin:** KYC approval screen for broker staff.
 
@@ -284,8 +284,31 @@ rules**, because anything in a phone app can be bypassed.
 ### Protection against duplicates
 
 Every order and withdrawal carries an **idempotency key**. The key stays the
-same if the user retries after a timeout, so the server can recognise a
-repeat and process it only once.
+same whenever the outcome is unknown (a timeout, a dropped connection, **any
+5xx**, or a success answer the app cannot read), because the server may have
+acted before the error came back. It is only replaced after a clear answer:
+a success, or a refusal (4xx other than 408/409/425/429). The server must
+answer a repeated key with the original result and process it only once.
+
+### Open points for the backend developer
+
+- **GTD expiry field name.** For good-till-date orders the app sends the last
+  active day as `expiryDate` (`YYYY-MM-DD`) in the order request. The name
+  was chosen on the app side and needs confirming. If the backend wants a
+  different name, renaming it is a one-line change in
+  `src/services/middlewareClient.ts` (`PlaceOrderInput`) and the order
+  built in `src/features/trading/pages/ATSTrade.tsx`.
+- **GTD 14-day limit.** The app only enforces the 14-day limit through its
+  date picker. The server must enforce it too, reject a GTD order that has
+  no valid `expiryDate`, and cancel the order when it expires.
+
+### Withdrawal approval
+
+Before money can leave, the server must approve it itself; the PIN check on
+the phone is only a convenience. The app sends the PIN to
+`POST /api/auth/step-up` and receives a single-use token tied to that amount
+and destination, which it sends with the withdrawal as `X-Step-Up-Token`. The
+full contract is at the top of `dpoService.ts`.
 
 ### Security
 
@@ -310,7 +333,8 @@ repeat and process it only once.
 - [ ] A real backend is configured and the production build was made with
       `npm run build` (never `build:dev`).
 - [ ] The backend enforces the same order and withdrawal rules as the app,
-      honours the `Idempotency-Key` header, and accepts audit events.
+      honours the `Idempotency-Key` header, verifies the withdrawal step-up
+      token, and accepts audit events.
 - [ ] `dist/` is hosted on HTTPS with `_headers` and `_redirects` applied.
 - [ ] Median is set up as in section 2, including the biometrics plugin.
 - [ ] Biometric sign-in has been tried on a real Android and a real iPhone.
@@ -336,14 +360,14 @@ repeat and process it only once.
 
 ## 7. Quality checks
 
-All of these pass, and CI (`.github/workflows/ci.yml`) runs them on every push:
+All of these pass, and CI (`.github/workflows/ci.yml`) runs every one of them on every push and pull request:
 
 ```sh
 npm run lint        # zero errors and zero warnings
 npm run typecheck   # strict TypeScript
 npm test            # unit tests
 npm run build       # production build
-npm audit           # known vulnerabilities in dependencies (currently 0)
+npm audit --audit-level=high   # known vulnerabilities in dependencies (currently 0)
 ```
 
 ---

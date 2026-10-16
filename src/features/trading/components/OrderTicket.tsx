@@ -6,6 +6,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { middlewareClient, ApiError, type PlaceOrderInput } from "@/services/middlewareClient";
 import { errorMessage } from "@/lib/apiShape";
+import { checkHalt } from "@/lib/halts";
+import { errorLeavesOutcomeUnknown } from "@/lib/idempotency";
 import { db } from "@/integrations/data/client";
 import { useMarketStatus, useWallet, useHoldings } from "@/hooks/useDataQuery";
 import { useAccountRestrictions } from "@/features/auth/hooks/useAccountRestrictions";
@@ -43,7 +45,7 @@ const OrderTicket = ({ stock, open, onClose }: OrderTicketProps) => {
   const [price, setPrice] = useState<string>("");
   const [submitting, setSubmitting] = useState(false);
   const [debugInfo, setDebugInfo] = useState<{ payload?: PlaceOrderInput; status?: number; body?: unknown; error?: string } | null>(null);
-  const { keyFor, settle } = useIdempotencyKey();
+  const { keyFor, settle } = useIdempotencyKey(user ? `order:${user.id}` : undefined);
   const [debugOpen, setDebugOpen] = useState(false);
   // The checked order awaiting the user's confirmation; null while editing.
   const [review, setReview] = useState<PlaceOrderInput | null>(null);
@@ -51,6 +53,8 @@ const OrderTicket = ({ stock, open, onClose }: OrderTicketProps) => {
   // Known-closed phases. Unknown/null leaves submit enabled — server will 403
   // if closed.
   const isMarketClosedKnown = marketStatus != null && marketStatus.trading_allowed === false;
+  // A halted stock (or a halts feed that can't be read) can't be ordered.
+  const halt = checkHalt(marketStatus, stock?.symbol);
 
   // Reset / prefill when a different symbol is opened. The last price is
   // read through a ref so that a live price tick (or the parent passing a
@@ -78,6 +82,7 @@ const OrderTicket = ({ stock, open, onClose }: OrderTicketProps) => {
     if (!user) return "You must be signed in";
     if (!canTrade) return "Trading is not currently available on your account. Contact support for details.";
     if (isMarketClosedKnown) return "The market is currently closed. Orders are accepted 09:00–14:00 CAT.";
+    if (halt.blocked) return halt.message;
     if (qty < 1) return "Quantity must be at least 1";
     if (orderType === "limit" && px <= 0) return "Enter a valid limit price";
     // Same money checks as the Trade page. A market order is valued at the
@@ -153,6 +158,14 @@ const OrderTicket = ({ stock, open, onClose }: OrderTicketProps) => {
     if (!payload) return;
     const clientId = payload.clientId;
 
+    // The halt may have started while the confirmation was on screen.
+    const haltNow = checkHalt(marketStatus, payload.symbol);
+    if (haltNow.blocked) {
+      toast.error(haltNow.message);
+      setReview(null);
+      return;
+    }
+
     setSubmitting(true);
     setDebugInfo({ payload });
     try {
@@ -178,15 +191,22 @@ const OrderTicket = ({ stock, open, onClose }: OrderTicketProps) => {
       queryClient.invalidateQueries({ queryKey: ["orders", clientId] });
       onClose();
     } catch (e) {
-      // A response from the server is a definitive answer; only a timeout or
-      // network failure leaves the outcome unknown and keeps the key so a
-      // retry can't duplicate the order.
-      if (e instanceof ApiError) settle();
+      // Only a refusal, or an answer, releases the key. A timeout, a dropped
+      // connection, any 5xx or an unreadable 2xx leaves the outcome unknown:
+      // the order may already exist, so the same key is kept and a retry
+      // replays it instead of creating a second order.
+      const unknown = errorLeavesOutcomeUnknown(e);
+      if (!unknown) settle();
+      if (unknown) {
+        queryClient.invalidateQueries({ queryKey: ["orders", clientId] });
+        queryClient.invalidateQueries({ queryKey: ["client-open-orders", clientId] });
+      }
       const status = e instanceof ApiError ? e.status : undefined;
       const body = e instanceof ApiError ? e.body : null;
       // FIX I: 403 from middleware means market closed — surface body.message verbatim.
-      const message =
-        status === 403 && typeof body?.message === 'string' && body.message
+      const message = unknown
+        ? "We couldn't confirm whether your order was placed. Check My Orders before trying again; retrying is safe and will not create a second order."
+        : status === 403 && typeof body?.message === 'string' && body.message
           ? body.message
           : (typeof body?.error === 'string' && body.error) || errorMessage(e, "Failed to place order");
       setDebugInfo({ payload, status, body, error: message });
@@ -305,8 +325,8 @@ const OrderTicket = ({ stock, open, onClose }: OrderTicketProps) => {
           })()}
         </div>
 
-        <button onClick={reviewOrder} disabled={submitting || isMarketClosedKnown}
-          className={`w-full py-3.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-opacity ${side === "buy" ? "bg-success text-success-foreground" : "bg-destructive text-destructive-foreground"} ${(submitting || isMarketClosedKnown) ? "opacity-60" : "hover:opacity-90"}`}>
+        <button onClick={reviewOrder} disabled={submitting || isMarketClosedKnown || halt.blocked}
+          className={`w-full py-3.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-opacity ${side === "buy" ? "bg-success text-success-foreground" : "bg-destructive text-destructive-foreground"} ${(submitting || isMarketClosedKnown || halt.blocked) ? "opacity-60" : "hover:opacity-90"}`}>
           {`Place ${side.toUpperCase()} Order`}
         </button>
         {/* Inline market-closed notice (mirrors server enforcement) */}
@@ -314,6 +334,9 @@ const OrderTicket = ({ stock, open, onClose }: OrderTicketProps) => {
           <p className="text-[11px] text-muted-foreground text-center -mt-1">
             Market closed — orders accepted 09:00–14:00 CAT
           </p>
+        )}
+        {halt.blocked && (
+          <p role="alert" className="text-[11px] text-destructive text-center -mt-1">{halt.message}</p>
         )}
         </>
         )}

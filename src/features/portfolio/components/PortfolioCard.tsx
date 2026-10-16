@@ -16,15 +16,18 @@ const PortfolioCard = () => {
   const { canDeposit, canWithdraw } = useAccountRestrictions();
   const { isOnline: middlewareOnline } = useMiddleware();
   const { isMarketOpen, isPreMarket } = useMarketStatus();
-  const { data: wallet } = useWallet();
-  const { data: holdings = [], isLoading: holdingsPending, isFetched: holdingsFetched } = useHoldings();
+  const { data: wallet, isError: walletFailed } = useWallet();
+  const { data: holdings = [], isLoading: holdingsPending, isFetched: holdingsFetched, isError: holdingsFailed } = useHoldings();
   // Only before the first answer, so the badge doesn't blink on retries.
   const holdingsLoading = holdingsPending && !holdingsFetched;
 
-  // Shows K0.00 until the wallet API returns a balance. Display only: buys
-  // are still checked against the real balance and refused while it's
-  // unknown (see features/trading/lib/orderLimits.ts).
-  const walletText = `K${Number(wallet?.balance ?? 0).toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  // K0.00 while the first answer is still on its way, "Unavailable" once the
+  // wallet API has failed or answered with something unreadable: a balance
+  // nobody confirmed is never shown as zero. Buys are checked against the
+  // real balance and refused while it's unknown (features/trading/lib/orderLimits.ts).
+  const walletText = walletFailed && !wallet
+    ? 'Unavailable'
+    : `K${(wallet?.balance ?? 0).toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const totalPortfolioValue = holdings.reduce((sum, h) => sum + Number(h.current_value ?? 0), 0);
   // Gain/loss computed from the real holdings.
   const totalGainLoss = holdings.reduce((sum, h) => sum + Number(h.gain_loss ?? 0), 0);
@@ -135,7 +138,7 @@ const PortfolioCard = () => {
               <div className="space-y-0.5 mb-2 sm:mb-3">
                 <p className="text-[10px] sm:text-xs uppercase tracking-wider text-white/70">Portfolio Balance</p>
                 <span className="text-xl sm:text-2xl font-bold md:text-lg text-white">
-                  {holdingsLoading ? '---' : formatZMW(totalPortfolioValue)}
+                  {holdingsLoading ? '---' : holdingsFailed ? 'Unavailable' : formatZMW(totalPortfolioValue)}
                 </span>
               </div>
 
@@ -143,7 +146,7 @@ const PortfolioCard = () => {
               <p className="text-[9px] mb-1" style={{ color: '#999' }}>{statusMsg}</p>
               }
 
-              {!holdingsLoading && (
+              {!holdingsLoading && !holdingsFailed && (
                 <span className={`px-3 py-1 rounded-full text-sm font-medium inline-flex items-center gap-1 ${gainLossPositive ? 'bg-success-muted text-success' : 'bg-destructive-muted text-destructive'}`}>
                   <TrendIcon flipped={!gainLossPositive} /> {gainLossPositive ? '+' : ''}{formatZMW(totalGainLoss)} ({gainLossPositive ? '+' : ''}{totalGainLossPct.toFixed(2)}%)
                 </span>

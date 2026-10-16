@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { Shield, Check } from 'lucide-react';
 import { setPIN } from '@/features/auth/services/pinService';
+import { enrolServerPin } from '@/services/dpoService';
+import { isTradingApiConfigured } from '@/services/middlewareClient';
 
 // The 5-attempt lockout (see pinService.ts) only slows down someone guessing
 // online; it does nothing against someone trying the handful of PINs people
@@ -53,6 +55,22 @@ export default function PINSetupFlow({ userId, onComplete, onSkip, isModal }: PI
         setStep('confirm');
       } else {
         if (digits === firstPin) {
+          // The server keeps its own copy so it can verify withdrawals
+          // itself. Enrol first: a PIN the server doesn't know would lock
+          // the user out of withdrawing.
+          if (isTradingApiConfigured) {
+            const enrolled = await enrolServerPin(digits);
+            if (!enrolled.success) {
+              setError(enrolled.sessionExpired
+                ? 'Your session has expired. Please sign in again.'
+                : "We couldn't save your PIN just now. Check your connection and try again.");
+              setPin('');
+              setFirstPin('');
+              setStep('enter');
+              setTimeout(() => inputRef.current?.focus(), 100);
+              return;
+            }
+          }
           await setPIN(userId, digits);
           setSuccess(true);
           setTimeout(onComplete, 1000);

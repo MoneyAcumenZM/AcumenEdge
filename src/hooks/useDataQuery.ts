@@ -25,9 +25,12 @@ export interface MarketStatusView {
   updated_at: string;
   description?: string;
   halted_symbols: string[];
+  /**
+   * False when the halts feed could not be read. Per-stock halts are then
+   * unknown, and order entry treats unknown as not cleared.
+   */
+  halts_known: boolean;
 }
-
-const CSD_STATUSES: ReadonlyArray<PortfolioHolding['csd_status']> = ['csd_deposited', 'pending_deposit', 'not_deposited'];
 
 // ─── Shared query keys ───
 export const queryKeys = {
@@ -54,27 +57,25 @@ export function useHoldings() {
   return useQuery({
     queryKey: queryKeys.holdings(user?.id || ''),
     queryFn: async (): Promise<HoldingView[]> => {
-      const res = await middlewareClient.getClientPortfolio(user!.id);
-      const positions = asRecords(res?.positions);
+      // Validated at the boundary: a position with a missing or non-numeric
+      // money field fails the whole portfolio ("unavailable") instead of
+      // being shown as worth 0.
+      const { positions } = await middlewareClient.getClientPortfolio(user!.id);
       // Map to the existing UI shape so views need minimal changes.
-      return positions.map((p) => {
-        const symbol = asString(p.symbol);
-        const csdStatus = p.csdStatus ?? p.csd_status;
-        return {
-        id: symbol,
-        stock_id: symbol,
-        quantity: Number(p.quantity || 0),
-        settled_qty: Number(p.quantity || 0),
-        pending_qty: Number(p.pendingQty ?? p.pending_qty ?? 0),
-        average_cost: Number(p.avgPrice || 0),
-        total_cost: Number(p.cost || 0),
-        current_value: Number(p.marketValue || 0),
-        gain_loss: Number(p.pnl || 0),
-        gain_loss_pct: Number(p.pnlPct || 0),
-        csd_status: CSD_STATUSES.find((s) => s === csdStatus) ?? 'csd_deposited',
-        stocks: { symbol, name: symbol, last_price: Number(p.currentPrice || 0) },
-        };
-      });
+      return positions.map((p): HoldingView => ({
+        id: p.symbol,
+        stock_id: p.symbol,
+        quantity: p.quantity,
+        settled_qty: p.quantity,
+        pending_qty: p.pendingQty ?? p.pending_qty ?? 0,
+        average_cost: p.avgPrice,
+        total_cost: p.cost,
+        current_value: p.marketValue,
+        gain_loss: p.pnl,
+        gain_loss_pct: p.pnlPct,
+        csd_status: p.csdStatus ?? p.csd_status ?? 'csd_deposited',
+        stocks: { symbol: p.symbol, name: p.symbol, last_price: p.currentPrice },
+      }));
     },
     // Not run at all without a trading API: there is nothing to ask, and a
     // query that only ever fails would keep re-entering its loading state.
@@ -224,15 +225,21 @@ export function useMarketStatus() {
   return useQuery({
     queryKey: queryKeys.marketStatus,
     queryFn: async (): Promise<MarketStatusView> => {
-      // Halts feed the per-symbol halt banner (ATSMarketBanner). Best-effort: a
-      // halts failure shouldn't block the rest of market status from resolving.
+      // Halts feed the halt banner and order entry (see lib/halts.ts). A
+      // failed read must not look like "nothing is halted": it is flagged
+      // as unknown, and the rest of market status still resolves.
+      let haltsKnown = true;
       const haltedSymbols: string[] = await middlewareClient.halts()
         .then((r) => {
           const body = asRecord(r);
-          const rows = asRecords(body.data ?? body.halts ?? r);
-          return rows.map((h) => asString(h.symbol)).filter(Boolean);
+          const raw = body.data ?? body.halts ?? r;
+          if (!Array.isArray(raw)) throw new Error('halts: not a list');
+          return asRecords(raw).map((h) => asString(h.symbol).trim().toUpperCase()).filter(Boolean);
         })
-        .catch(() => []);
+        .catch(() => {
+          haltsKnown = false;
+          return [] as string[];
+        });
 
       try {
         const result = await middlewareClient.sessions();
@@ -247,9 +254,12 @@ export function useMarketStatus() {
         // FIX numeric TradSesStatus codes
         if (d === '2') { phase = 'continuous'; tradingAllowed = true; }
         else if (d === '4') { phase = 'pre_open_auction'; tradingAllowed = false; }
-        else if (d === '3' || d === '1') { phase = 'closed'; tradingAllowed = false; }
+        else if (d === '1') { phase = 'halted'; tradingAllowed = false; }
+        else if (d === '3') { phase = 'closed'; tradingAllowed = false; }
         // String descriptions
-        else if (['fullmarket','continuous','open','trading','full_market','continuous_trading'].includes(d)) {
+        else if (['halted','halt','suspended','trading_halt'].includes(d)) {
+          phase = 'halted'; tradingAllowed = false;
+        } else if (['fullmarket','continuous','open','trading','full_market','continuous_trading'].includes(d)) {
           phase = 'continuous'; tradingAllowed = true;
         } else if (['premarketauction','pre_open','pre_open_auction','openingauction',
                     'opening_auction','popen','preopen','premarket'].includes(d)) {
@@ -265,9 +275,9 @@ export function useMarketStatus() {
         // trading market-wide. session_phase stays driven by the session
         // endpoint alone; halted_symbols is surfaced separately for
         // per-symbol banner messaging (see ATSMarketBanner).
-        return { session_phase: phase, trading_allowed: tradingAllowed, updated_at: new Date().toISOString(), description: desc, halted_symbols: haltedSymbols };
+        return { session_phase: phase, trading_allowed: tradingAllowed, updated_at: new Date().toISOString(), description: desc, halted_symbols: haltedSymbols, halts_known: haltsKnown };
       } catch {
-        return { session_phase: 'closed', trading_allowed: false, updated_at: new Date().toISOString(), halted_symbols: haltedSymbols };
+        return { session_phase: 'closed', trading_allowed: false, updated_at: new Date().toISOString(), halted_symbols: haltedSymbols, halts_known: haltsKnown };
       }
     },
     staleTime: 30_000,

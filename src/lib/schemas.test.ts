@@ -39,6 +39,12 @@ describe("orderSchema", () => {
     }
   });
 
+  it("rejects a GTD order whose expiry is empty or not a date", () => {
+    for (const expiry_date of ["", "tomorrow", "01/03/2026"]) {
+      expect(orderSchema.safeParse({ ...baseOrder, qualifier: "gtd", expiry_date }).success).toBe(false);
+    }
+  });
+
   it("accepts a GTD order that does provide an expiry date", () => {
     const result = orderSchema.safeParse({ ...baseOrder, qualifier: "gtd", expiry_date: "2026-03-01" });
     expect(result.success).toBe(true);
