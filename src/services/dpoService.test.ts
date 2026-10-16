@@ -155,3 +155,20 @@ describe("verifyDeposit", () => {
     expect((await verifyDeposit("tok")).success).toBe(false);
   });
 });
+
+describe("deposit initiation", () => {
+  it("refuses an answer with neither a payment link nor a token", async () => {
+    const { initiateDeposit, initiateMobileDeposit } = await load();
+    fetchMock.mockResolvedValue(json(200, {}));
+    expect((await initiateDeposit({ amount: 100 })).success).toBe(false);
+    expect((await initiateMobileDeposit({ amount: 100, mobileNumber: "0971234567", provider: "MTN" })).success).toBe(false);
+  });
+
+  it("accepts the documented answers", async () => {
+    const { initiateDeposit, initiateMobileDeposit } = await load();
+    fetchMock.mockResolvedValueOnce(json(200, { payUrl: "https://pay.test/x", transactionToken: "t", reference: "r" }));
+    expect(await initiateDeposit({ amount: 100 })).toMatchObject({ success: true, payUrl: "https://pay.test/x" });
+    fetchMock.mockResolvedValueOnce(json(200, { transactionToken: "t", status: "awaiting_approval" }));
+    expect(await initiateMobileDeposit({ amount: 100, mobileNumber: "0971234567", provider: "MTN" })).toMatchObject({ success: true, transactionToken: "t" });
+  });
+});

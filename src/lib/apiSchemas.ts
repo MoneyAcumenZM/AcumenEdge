@@ -75,6 +75,22 @@ export const withdrawResultSchema = z.object({
   success: z.boolean().optional(),
 });
 
+/** Card deposits return payUrl, mobile deposits only a token; either way a token or URL must be there. */
+export const depositInitSchema = z
+  .object({
+    payUrl: z.string().url().optional(),
+    transactionToken: nonEmpty.optional(),
+    reference: z.string().optional(),
+    transactionId: idLike.optional(),
+    amount: money.optional(),
+    status: z.string().optional(),
+    message: z.string().optional(),
+    success: z.boolean().optional(),
+  })
+  .refine((d) => d.payUrl !== undefined || d.transactionToken !== undefined, {
+    message: 'no payUrl or transactionToken',
+  });
+
 export const depositVerifySchema = z
   .object({
     status: nonEmpty,

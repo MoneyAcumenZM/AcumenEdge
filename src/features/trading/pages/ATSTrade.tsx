@@ -248,7 +248,12 @@ const ATSTrade = () => {
         // Roll back optimistic update
         queryClient.invalidateQueries({ queryKey: queryKeys.orders(user.id) });
         HapticFeedback.error();
-        throw new Error(mwResponse?.error || 'Order submission failed');
+        // The server answered and said no: a definite refusal (the key was
+        // released above), not an unknown outcome, so it must not go through
+        // the catch below, which treats an unexplained Error as "unknown".
+        setErrors([sanitizeError(new Error(mwResponse?.error || 'Order submission failed'))]);
+        setConfirmOpen(false);
+        return;
       }
 
       HapticFeedback.success();

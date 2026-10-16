@@ -80,6 +80,7 @@
 
 import {
   parseWalletTransactions,
+  depositInitSchema,
   depositVerifySchema,
   parseApi,
   stepUpSchema,
@@ -239,8 +240,8 @@ export interface WithdrawParams {
   /** Generated once per withdrawal attempt and reused across retries so a
    * network retry or double-submit can't create two withdrawal requests. */
   idempotencyKey?: string;
-  /** Single-use token from requestStepUp(), bound to this withdrawal. */
-  stepUpToken?: string;
+  /** Single-use token from requestStepUp(), bound to this withdrawal. Required: no token, no request. */
+  stepUpToken: string;
 }
 
 export interface WithdrawResult extends Result {
@@ -276,12 +277,17 @@ export async function getWallet(): Promise<WalletResponse> {
 export async function initiateDeposit(
   params: InitiateDepositParams,
 ): Promise<InitiateDepositResult> {
-  const r = await call<InitiateDepositResult>('/api/wallet/deposit', {
+  const r = await call<unknown>('/api/wallet/deposit', {
     method: 'POST',
     body: { currency: 'ZMW', ...params },
   });
   if (r.ok === false) return r.result;
-  return { ...r.data, success: r.data?.success ?? true };
+  try {
+    const parsed = parseApi(depositInitSchema, r.data, 'deposit');
+    return { ...parsed, success: parsed.success ?? true };
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : 'Could not start the deposit.' };
+  }
 }
 
 export async function initiateMobileDeposit(params: {
@@ -289,12 +295,17 @@ export async function initiateMobileDeposit(params: {
   mobileNumber: string;
   provider: MobileNetwork;
 }): Promise<InitiateMobileDepositResult> {
-  const r = await call<InitiateMobileDepositResult>('/api/wallet/deposit/mobile', {
+  const r = await call<unknown>('/api/wallet/deposit/mobile', {
     method: 'POST',
     body: { ...params, mobileNumber: normalisePhone(params.mobileNumber) },
   });
   if (r.ok === false) return r.result;
-  return { status: 'awaiting_approval', ...r.data, success: r.data?.success ?? true };
+  try {
+    const parsed = parseApi(depositInitSchema, r.data, 'deposit');
+    return { status: 'awaiting_approval', ...parsed, success: parsed.success ?? true };
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : 'Could not start the deposit.' };
+  }
 }
 
 export async function verifyDeposit(transToken: string): Promise<VerifyDepositResult> {
@@ -371,7 +382,7 @@ export async function requestWithdrawal(params: WithdrawParams): Promise<Withdra
     body,
     headers: {
       ...(idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {}),
-      ...(stepUpToken ? { 'X-Step-Up-Token': stepUpToken } : {}),
+      'X-Step-Up-Token': stepUpToken,
     },
   });
   if (r.ok === false) return r.result;
