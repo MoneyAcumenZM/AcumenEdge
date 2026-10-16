@@ -87,7 +87,7 @@ const AccountPending = () => {
           width={80}
           height={80}
           loading="eager"
-          fetchPriority="high"
+          {...{ fetchpriority: "high" }}
           className="w-20 h-20 mx-auto rounded-xl"
           style={{ filter: 'drop-shadow(0 0 12px rgba(6, 182, 212, 0.35))' }}
         />

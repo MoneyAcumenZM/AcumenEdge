@@ -323,7 +323,7 @@ const SignUp = () => {
             <h1 className="text-lg font-bold text-foreground">Create Account</h1>
             <p className="text-xs text-muted-foreground">Step {step} of 4</p>
           </div>
-          <img src={circleLogo} alt="AcumenEdge" width={40} height={40} loading="eager" fetchPriority="high" className="w-10 h-10 object-contain" />
+          <img src={circleLogo} alt="AcumenEdge" width={40} height={40} loading="eager" {...{ fetchpriority: "high" }} className="w-10 h-10 object-contain" />
         </div>
 
         {/* Progress */}

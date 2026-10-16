@@ -56,7 +56,7 @@ const ForgotPassword = () => {
     <div className="min-h-screen flex items-center justify-center p-6 bg-background">
       <div className="w-full max-w-sm space-y-8">
         <div className="text-center space-y-4">
-          <img src={circleLogo} alt="AcumenEdge" width={80} height={80} loading="eager" fetchPriority="high" className="w-20 h-20 mx-auto rounded-xl" style={{ filter: 'drop-shadow(0 0 12px rgba(6, 182, 212, 0.35))' }} />
+          <img src={circleLogo} alt="AcumenEdge" width={80} height={80} loading="eager" {...{ fetchpriority: "high" }} className="w-20 h-20 mx-auto rounded-xl" style={{ filter: 'drop-shadow(0 0 12px rgba(6, 182, 212, 0.35))' }} />
           <div>
             <h1 className="text-2xl font-bold text-foreground">Reset Your Password</h1>
             <p className="text-sm text-muted-foreground mt-1">Enter the email address linked to your account. We'll send you a reset link.</p>

@@ -117,7 +117,7 @@ const PortfolioCard = () => {
             <div className="relative z-10">
               <div className="flex items-start justify-between mb-1">
                 <div className="flex items-center gap-2">
-                  <img src={moneyAcumenLogo} alt="Money Acumen" width={40} height={40} loading="eager" fetchPriority="high"
+                  <img src={moneyAcumenLogo} alt="Money Acumen" width={40} height={40} loading="eager" {...{ fetchpriority: "high" }}
                   className="w-8 h-8 sm:w-10 sm:h-10 object-contain"
                   style={{ filter: 'none', transition: 'filter 0.8s ease' }} />
                   
@@ -173,7 +173,7 @@ const PortfolioCard = () => {
             <div className="absolute pointer-events-none wallet-shimmer-streak" style={{ top: '-60%', left: '-30%', width: '70%', height: '220%', background: 'linear-gradient(105deg, transparent 38%, rgba(255,255,255,0.1) 43%, rgba(255,255,255,0.2) 50%, rgba(255,255,255,0.1) 57%, transparent 62%)' }} />
             <div className="w-full h-full flex items-center justify-center p-6 relative z-10">
               <img
-                src={moneyAcumenLogo} alt="Money Acumen" width={160} height={160} loading="eager" decoding="sync" fetchPriority="high"
+                src={moneyAcumenLogo} alt="Money Acumen" width={160} height={160} loading="eager" decoding="sync" {...{ fetchpriority: "high" }}
                 className={`w-32 h-32 sm:w-40 sm:h-40 object-contain drop-shadow-2xl transition-opacity duration-300 ${backLogoReady ? 'opacity-100' : 'opacity-0'}`} />
               
             </div>

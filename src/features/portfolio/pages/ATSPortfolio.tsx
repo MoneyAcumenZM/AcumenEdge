@@ -55,7 +55,7 @@ const ATSPortfolio = () => {
         <div className="relative z-10">
           <div className="flex items-start justify-between mb-1">
             <p className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-wider">Portfolio Value</p>
-            <img src={circleLogo} alt="Circle" width={48} height={40} loading="eager" fetchPriority="high" className="w-10 h-8 sm:w-12 sm:h-10 object-contain drop-shadow-lg" />
+            <img src={circleLogo} alt="Circle" width={48} height={40} loading="eager" {...{ fetchpriority: "high" }} className="w-10 h-8 sm:w-12 sm:h-10 object-contain drop-shadow-lg" />
           </div>
           <div className="flex items-baseline gap-1.5 sm:gap-2 mb-2">
             <span className="text-xl sm:text-2xl md:text-3xl font-bold text-foreground">{formatZMW(totalValue)}</span>

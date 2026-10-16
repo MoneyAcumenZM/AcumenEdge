@@ -91,7 +91,7 @@ const ResetPassword = () => {
     return (
       <div className="min-h-screen flex items-center justify-center p-6 bg-background">
         <div className="w-full max-w-sm space-y-6 text-center">
-          <img src={circleLogo} alt="AcumenEdge" width={80} height={80} loading="eager" fetchPriority="high" className="w-20 h-20 mx-auto rounded-xl" />
+          <img src={circleLogo} alt="AcumenEdge" width={80} height={80} loading="eager" {...{ fetchpriority: "high" }} className="w-20 h-20 mx-auto rounded-xl" />
           <h2 className="text-xl font-bold text-foreground">Invalid Reset Link</h2>
           <p className="text-sm text-muted-foreground">This password reset link is invalid or has expired. Please request a new one.</p>
           <button onClick={() => navigate('/forgot-password')} className="w-full py-3.5 bg-primary text-primary-foreground rounded-xl text-sm font-bold hover:opacity-90 transition-opacity">
@@ -106,7 +106,7 @@ const ResetPassword = () => {
     <div className="min-h-screen flex items-center justify-center p-6 bg-background">
       <div className="w-full max-w-sm space-y-8">
         <div className="text-center space-y-4">
-          <img src={circleLogo} alt="AcumenEdge" width={80} height={80} loading="eager" fetchPriority="high" className="w-20 h-20 mx-auto rounded-xl" style={{ filter: 'drop-shadow(0 0 12px rgba(6, 182, 212, 0.35))' }} />
+          <img src={circleLogo} alt="AcumenEdge" width={80} height={80} loading="eager" {...{ fetchpriority: "high" }} className="w-20 h-20 mx-auto rounded-xl" style={{ filter: 'drop-shadow(0 0 12px rgba(6, 182, 212, 0.35))' }} />
           <div>
             <h1 className="text-2xl font-bold text-foreground">Create New Password</h1>
             <p className="text-sm text-muted-foreground mt-1">At least {SECURITY_CONFIG.PASSWORD_MIN_LENGTH} characters, with upper/lowercase, a number and a symbol</p>
